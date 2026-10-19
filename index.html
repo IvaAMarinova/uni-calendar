@@ -12,6 +12,9 @@
   --line: #eceef1;
   --today: #f6f7f9;
   --off: #fafbfc;
+  --vacation: #e9f6ec;
+  --session: #fdf3d8;
+  --retake: #fbe7e7;
   --now: #e5484d;
   --even: #0f8a80;
   --even-soft: #e3f4f2;
@@ -29,7 +32,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #15171b; --fg: #e9ebee; --muted: #8b919b; --line: #262a30; --today: #1b1e23; --off: #181a1e;
+    --bg: #15171b; --fg: #e9ebee; --muted: #8b919b; --line: #262a30; --today: #1b1e23; --off: #181a1e; --vacation: #172a1d; --session: #2e2814; --retake: #321b1c;
     --even: #4cc7bc; --even-soft: #173432; --odd: #f0985e; --odd-soft: #3a2518;
     --ms: #3b74d6; --saa: #2a9a66; --ppe: #c9645c; --pnpe: #7b2196; --mat: #c98706;
     --hl: #8ab4f8; --hl-soft: #1c2a40;
@@ -37,7 +40,7 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg: #15171b; --fg: #e9ebee; --muted: #8b919b; --line: #262a30; --today: #1b1e23; --off: #181a1e;
+  --bg: #15171b; --fg: #e9ebee; --muted: #8b919b; --line: #262a30; --today: #1b1e23; --off: #181a1e; --vacation: #172a1d; --session: #2e2814; --retake: #321b1c;
   --even: #4cc7bc; --even-soft: #173432; --odd: #f0985e; --odd-soft: #3a2518;
   --ms: #3b74d6; --saa: #2a9a66; --ppe: #c9645c; --pnpe: #7b2196; --mat: #c98706;
   --hl: #8ab4f8; --hl-soft: #1c2a40;
@@ -146,7 +149,12 @@ main .wrap { padding-block: 0 24px; }
 }
 .col:last-child { border-right: 1px solid var(--line); }
 .col.is-today { background-color: var(--hl-soft); box-shadow: inset 2px 0 0 var(--hl), inset -2px 0 0 var(--hl); }
-.col.holiday { background-color: var(--line); }
+.col.holiday, .mday.holiday { background-color: var(--line); }
+.col.vacation, .mday.vacation { background-color: var(--vacation); }
+.col.session, .mday.session { background-color: var(--session); }
+.col.retake, .mday.retake { background-color: var(--retake); }
+.col.before, .mday.before { background-color: var(--off); }
+.mday.off .hol { color: var(--fg); opacity: .7; }
 .holiday-label {
   position: absolute; inset: 12px 2px auto; text-align: center;
   font-size: 0.75rem; color: var(--muted);
@@ -332,7 +340,8 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
 <footer>
   <div class="wrap">
     <p class="hint">Натисни върху занятие, за да видиш преподавател, контакти и бележки. Плътното <b>i</b> означава, че има добавена информация.</p>
-    <p>Зимен семестър 2026/27 · Седмица 1 започва на 21.09 (нечетна) · Мат. III от 3-та седмица · САА лб: А в нечетни, Б в четни седмици · л = лекция, лб = лаб., су = семинар.</p>
+    <p>Зимен семестър 2026/27: занятия 23.09–22.12 · Коледна ваканция 23.12–03.01 · Изпитна сесия 04.01–23.01 · Поправителна сесия 25.01–06.02.</p>
+    <p>Седмица 1 = 21.09 (нечетна) · Мат. III от 3-та седмица · САА лб: А в нечетни, Б в четни седмици · л = лекция, лб = лаб., су = семинар.</p>
   </div>
 </footer>
 
@@ -340,9 +349,11 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
 (function () {
   // Week 1 of the semester (Monday). Week 1 = odd.
   var SEMESTER_START = new Date(2026, 8, 21);
-  var CALENDAR_END = new Date(2026, 11, 31);
+  var CLASSES_START = new Date(2026, 8, 23);   // first day of classes
+  var CLASSES_END = new Date(2026, 11, 22);    // last day of classes
+  var CALENDAR_END = new Date(2027, 1, 6);     // end of retake session
   var FIRST_MONTH = new Date(2026, 8, 1);
-  var LAST_MONTH = new Date(2026, 11, 1);
+  var LAST_MONTH = new Date(2027, 1, 1);
   var MATH_FROM_WEEK = 3;
   var DAY_START = 7 * 60;   // week grid starts 07:00
   var DAY_END = 20 * 60;    // week grid ends 20:00
@@ -376,11 +387,33 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
     { day: 4, from: "10:30", to: "13:15", subj: "САА", kind: "л", room: "2140", groups: "AB", weeks: "all" }
   ];
 
+  // Official days off (academic calendar 2026/27).
   var HOLIDAYS = {
-    "2026-09-22": "Ден на независимостта",
-    "2026-12-08": "Ден на студентите"
+    "2026-11-01": "Ден на народните будители",
+    "2026-12-08": "Ден на студентите",
+    "2027-01-01": "Нова година"
   };
-  for (var d = 24; d <= 31; d++) HOLIDAYS["2026-12-" + d] = d <= 26 ? "Коледа" : "Коледна ваканция";
+  for (var d = 24; d <= 28; d++) HOLIDAYS["2026-12-" + d] = "Коледни празници";
+
+  // Non-teaching periods: [first day, last day, label, style].
+  var PERIODS = [
+    [new Date(2026, 8, 14), new Date(2026, 8, 22), "Семестърът започва на 23.09", "before"],
+    [new Date(2026, 11, 23), new Date(2027, 0, 3), "Коледна ваканция", "vacation"],
+    [new Date(2027, 0, 4), new Date(2027, 0, 23), "Изпитна сесия", "session"],
+    [new Date(2027, 0, 24), new Date(2027, 1, 6), "Поправителна сесия", "retake"]
+  ];
+  function periodOf(date) {
+    for (var i = 0; i < PERIODS.length; i++) {
+      if (date >= PERIODS[i][0] && date <= PERIODS[i][1]) return { label: PERIODS[i][2], cls: PERIODS[i][3] };
+    }
+    return null;
+  }
+  // What to show instead of classes on a day, if anything.
+  function dayNote(date) {
+    var h = HOLIDAYS[key(date)];
+    if (h) return { label: h, cls: "holiday" };
+    return periodOf(date);
+  }
 
   var DAY_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
   var DAY_FULL = ["Понеделник", "Вторник", "Сряда", "Четвъртък", "Петък"];
@@ -403,6 +436,7 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
     var day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     return Math.floor(Math.round((day - SEMESTER_START) / DAY_MS) / 7) + 1;
   }
+  var LAST_TEACHING_WEEK = weekOf(CLASSES_END);
   function clampWeek(n) { return Math.max(1, Math.min(TOTAL_WEEKS, n)); }
   function clampMonth(m) { return m < FIRST_MONTH ? FIRST_MONTH : m > LAST_MONTH ? LAST_MONTH : m; }
 
@@ -477,7 +511,7 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
   // All classes on a given date for the selected subgroup.
   function eventsOn(date) {
     var n = weekOf(date), wd = weekday(date);
-    if (n < 1 || n > TOTAL_WEEKS || wd > 4 || HOLIDAYS[key(date)]) return [];
+    if (date < CLASSES_START || date > CLASSES_END || wd > 4 || HOLIDAYS[key(date)]) return [];
     var p = parityOf(n);
     return EVENTS.filter(function (ev) {
       if (ev.day !== wd) return false;
@@ -601,11 +635,19 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
 
   function renderWeek() {
     var p = parityOf(week);
-    setParity(p);
-
+    var teaching = week <= LAST_TEACHING_WEEK;
     var monday = addDays(SEMESTER_START, (week - 1) * 7);
-    $("t-main").textContent = "Седмица " + week;
-    $("t-parity").textContent = p === "even" ? "четна" : "нечетна";
+
+    if (teaching) {
+      setParity(p);
+      $("t-main").textContent = "Седмица " + week;
+      $("t-parity").textContent = p === "even" ? "четна" : "нечетна";
+    } else {
+      document.documentElement.style.setProperty("--parity", "var(--line)");
+      var per = periodOf(monday);
+      $("t-main").textContent = per ? per.label : "Седмица " + week;
+    }
+    $("t-parity").hidden = !teaching;
     $("t-range").textContent = nice(monday) + " – " + nice(addDays(monday, 4));
     $("prev").disabled = week <= 1;
     $("next").disabled = week >= TOTAL_WEEKS;
@@ -644,9 +686,10 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
       col.style.height = height;
       if (isToday) col.classList.add("is-today");
 
-      if (HOLIDAYS[k]) {
-        col.classList.add("holiday");
-        col.appendChild(el("div", "holiday-label", HOLIDAYS[k]));
+      var note = dayNote(date);
+      if (note) {
+        col.classList.add("off", note.cls);
+        col.appendChild(el("div", "holiday-label", note.label));
       }
       layout(eventsOn(date)).forEach(function (item) {
         var ev = item.ev, s = mins(ev.from), e = mins(ev.to);
@@ -697,8 +740,9 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
     while (cursor <= end) {
       var n = weekOf(cursor);
       var inSemester = n >= 1 && n <= TOTAL_WEEKS;
-      var wk = el("div", "mweek" + (inSemester ? " " + parityOf(n) : ""), inSemester ? String(n) : "");
-      if (inSemester) wk.title = "Седмица " + n + " · " + (parityOf(n) === "even" ? "четна" : "нечетна");
+      var isTeaching = n >= 1 && n <= LAST_TEACHING_WEEK;
+      var wk = el("div", "mweek" + (isTeaching ? " " + parityOf(n) : ""), isTeaching ? String(n) : "");
+      if (isTeaching) wk.title = "Седмица " + n + " · " + (parityOf(n) === "even" ? "четна" : "нечетна");
       var isCurWeek = n === todayWeek;
       if (isCurWeek) wk.classList.add("cur");
       monthEl.appendChild(wk);
@@ -713,7 +757,11 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
         if (k === todayKey) cell.classList.add("is-today");
         cell.appendChild(el("span", "num", String(date.getDate())));
 
-        if (HOLIDAYS[k] && i < 5) cell.appendChild(el("div", "hol", HOLIDAYS[k]));
+        var note = dayNote(date);
+        if (note && date.getMonth() === month.getMonth()) {
+          cell.classList.add("off", note.cls);
+          if (i < 5 || note.cls === "holiday") cell.appendChild(el("div", "hol", note.label));
+        }
         eventsOn(date).forEach(function (ev) {
           var chip = el("span", "chip");
           chip.style.setProperty("--c", COLORS[ev.subj]);
