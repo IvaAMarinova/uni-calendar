@@ -37,6 +37,7 @@
   --on-ev: #ffffff;
   --hl: #1a73e8;
   --hl-soft: #e8f0fe;
+  --warn: #d93025;
   --ppm: 0.9; /* px per minute in week view */
 }
 @media (prefers-color-scheme: dark) {
@@ -44,7 +45,7 @@
     --bg: #15171b; --fg: #e9ebee; --muted: #8b919b; --line: #262a30; --today: #1b1e23; --off: #181a1e; --vacation: #172a1d; --session: #2e2814; --retake: #321b1c;
     --even: #4cc7bc; --even-soft: #173432; --odd: #f0985e; --odd-soft: #3a2518;
     --ms: #3b74d6; --saa: #2a9a66; --ppe: #c9645c; --pnpe: #7b2196; --mat: #c98706;
-    --hl: #8ab4f8; --hl-soft: #1c2a40;
+    --hl: #8ab4f8; --hl-soft: #1c2a40; --warn: #e5534b;
     color-scheme: dark;
   }
 }
@@ -52,7 +53,7 @@
   --bg: #15171b; --fg: #e9ebee; --muted: #8b919b; --line: #262a30; --today: #1b1e23; --off: #181a1e; --vacation: #172a1d; --session: #2e2814; --retake: #321b1c;
   --even: #4cc7bc; --even-soft: #173432; --odd: #f0985e; --odd-soft: #3a2518;
   --ms: #3b74d6; --saa: #2a9a66; --ppe: #c9645c; --pnpe: #7b2196; --mat: #c98706;
-  --hl: #8ab4f8; --hl-soft: #1c2a40;
+  --hl: #8ab4f8; --hl-soft: #1c2a40; --warn: #e5534b;
   color-scheme: dark;
 }
 @media (max-width: 600px) { :root { --ppm: 0.8; } }
@@ -249,6 +250,24 @@ main .wrap { padding-block: 0 24px; }
 }
 .ev.has-info::after { background: var(--on-ev); color: var(--c); border-color: var(--on-ev); }
 .chip.has-info::after { content: " ⓘ"; }
+
+/* one-off marks (test, exam) and deadlines */
+.ev.marked { box-shadow: 0 0 0 2px var(--warn); }
+.ev .badge {
+  display: inline-block; margin-bottom: 2px; padding: 0 5px; border-radius: 4px;
+  background: var(--on-ev); color: var(--warn); font-size: 0.68rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .03em;
+}
+.chip.marked { box-shadow: inset 0 0 0 2px var(--warn); font-weight: 700; }
+.deadline {
+  display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  margin-top: 4px; padding: 1px 6px; border-radius: 4px; cursor: pointer;
+  font-size: 0.7rem; font-weight: 700; line-height: 1.4; text-align: left;
+  background: var(--warn); color: var(--on-ev);
+}
+.deadline:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+dd.warn { color: var(--warn); font-weight: 650; }
+@media (max-width: 600px) { .deadline { font-size: 0.6rem; padding: 0 3px; } }
 @media (max-width: 600px) {
   .ev { padding-right: 4px; }
   .ev::after { width: 11px; height: 11px; font-size: 7px; line-height: 8px; top: 2px; right: 2px; }
@@ -425,8 +444,33 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
     return periodOf(date);
   }
 
+  // One-off notes for a class on a specific date. `match` picks the class that day;
+  // `force` shows it even when lectures are hidden.
+  var MARKS = [
+    { date: "2026-12-01", match: { subj: "ППЕ", kind: "лб", groups: "A" }, badge: "Тест",
+      text: "Тест в упражнението." },
+    { date: "2026-12-02", match: { subj: "ППЕ", kind: "л" }, badge: "Изпит", force: true,
+      text: "Задължителна лекция — има изпит." }
+  ];
+  // All-day deadlines.
+  var DEADLINES = [
+    { date: "2026-12-16", subj: "САА", groups: "AB", title: "Срок: курсова работа",
+      text: "Краен срок за предаване на курсовата работа по САА." }
+  ];
+  function markFor(ev, k) {
+    for (var i = 0; i < MARKS.length; i++) {
+      var m = MARKS[i];
+      if (m.date !== k) continue;
+      var ok = true;
+      for (var f in m.match) if (ev[f] !== m.match[f]) ok = false;
+      if (ok) return m;
+    }
+    return null;
+  }
+
   var DAY_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
   var DAY_FULL = ["Понеделник", "Вторник", "Сряда", "Четвъртък", "Петък"];
+  var DAY_NAMES_ALL = DAY_FULL.concat(["Събота", "Неделя"]);
   var KIND_FULL = { "л": "лекция", "лб": "лабораторно упражнение", "су": "семинарно упражнение" };
   var MONTHS = ["яну", "фев", "мар", "апр", "май", "юни", "юли", "авг", "сеп", "окт", "ное", "дек"];
   var MONTHS_FULL = ["Януари", "Февруари", "Март", "Април", "Май", "Юни", "Юли", "Август", "Септември", "Октомври", "Ноември", "Декември"];
@@ -522,15 +566,25 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
   function eventsOn(date) {
     var n = weekOf(date), wd = weekday(date);
     if (date < CLASSES_START || date > CLASSES_END || wd > 4 || HOLIDAYS[key(date)]) return [];
-    var p = parityOf(n);
-    return EVENTS.filter(function (ev) {
+    var p = parityOf(n), k = key(date);
+    return EVENTS.map(function (ev) {
+      var m = markFor(ev, k);
+      return m ? Object.assign({}, ev, { mark: m }) : ev;
+    }).filter(function (ev) {
       if (ev.day !== wd) return false;
-      if (!showLectures && ev.kind === "л") return false;
+      if (!showLectures && ev.kind === "л" && !(ev.mark && ev.mark.force)) return false;
       if (ev.fromWeek && n < ev.fromWeek) return false;
       if (ev.weeks !== "all" && ev.weeks !== p) return false;
       if (group !== "all" && ev.groups.indexOf(group) < 0) return false;
       return true;
     }).sort(function (a, b) { return mins(a.from) - mins(b.from); });
+  }
+
+  function deadlinesOn(date) {
+    var k = key(date);
+    return DEADLINES.filter(function (d) {
+      return d.date === k && (group === "all" || d.groups.indexOf(group) >= 0);
+    });
   }
 
   // Place overlapping events side by side: each gets a lane and the lane count of its cluster.
@@ -590,6 +644,10 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
     var weeks = ev.weeks === "all" ? "всяка седмица" : ev.weeks === "even" ? "четни седмици" : "нечетни седмици";
     if (ev.fromWeek) weeks += ", от " + ev.fromWeek + "-та седмица";
 
+    if (ev.mark) row("Важно", function (dd) {
+      dd.className = "warn";
+      dd.textContent = ev.mark.date.slice(8) + "." + ev.mark.date.slice(5, 7) + ": " + ev.mark.text;
+    });
     row("Кога", DAY_FULL[ev.day] + ", " + ev.from + "–" + ev.to);
     row("Седмици", weeks);
     row("Зала", ev.room);
@@ -608,13 +666,39 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
     if (dialog.showModal) dialog.showModal(); else dialog.setAttribute("open", "");
   }
 
-  function clickable(node, ev) {
+  function openDeadline(d) {
+    $("d-dot").style.background = "var(--warn)";
+    $("d-title").textContent = d.subj;
+    $("d-kind").textContent = d.title;
+    var list = $("d-list");
+    list.innerHTML = "";
+    var date = new Date(+d.date.slice(0, 4), +d.date.slice(5, 7) - 1, +d.date.slice(8));
+    [["Дата", DAY_NAMES_ALL[weekday(date)] + ", " + d.date.slice(8) + "." + d.date.slice(5, 7) + "." + d.date.slice(0, 4)],
+     ["Група", d.groups === "AB" ? "цялата група" : groupLabel(d)],
+     ["Бележки", d.text]].forEach(function (r) {
+      list.appendChild(el("dt", null, r[0]));
+      var dd = el("dd");
+      linkify(dd, r[1]);
+      list.appendChild(dd);
+    });
+    if (dialog.showModal) dialog.showModal(); else dialog.setAttribute("open", "");
+  }
+
+  function deadlineChip(d) {
+    var chip = el("span", "deadline", "⚑ " + d.subj + " · " + d.title.replace("Срок: ", ""));
+    chip.title = d.title + " · " + d.subj;
+    clickable(chip, d, openDeadline);
+    return chip;
+  }
+
+  function clickable(node, ev, open) {
+    open = open || openDetails;
     if (ev.info) node.classList.add("has-info");
     node.tabIndex = 0;
     node.setAttribute("role", "button");
-    node.addEventListener("click", function (e) { e.stopPropagation(); openDetails(ev); });
+    node.addEventListener("click", function (e) { e.stopPropagation(); open(ev); });
     node.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); openDetails(ev); }
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); open(ev); }
     });
   }
 
@@ -690,6 +774,7 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
       var head = el("div", isToday ? "is-today" : null);
       head.appendChild(el("div", "dn", DAY_SHORT[i]));
       head.appendChild(el("div", "dd", String(date.getDate())));
+      deadlinesOn(date).forEach(function (d) { head.appendChild(deadlineChip(d)); });
       dayhead.appendChild(head);
 
       var col = el("div", "col");
@@ -711,6 +796,11 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
         box.style.width = (100 / item.count) + "%";
         box.title = ev.subj + " " + ev.kind + " · " + ev.from + "–" + ev.to + " · зала " + ev.room + (groupLabel(ev) ? " · " + groupLabel(ev) : "");
 
+        if (ev.mark) {
+          box.classList.add("marked");
+          box.appendChild(el("div", "badge", "⚠ " + ev.mark.badge));
+          box.title += " · " + ev.mark.text;
+        }
         box.appendChild(el("div", "t", ev.from + "–" + ev.to));
         var name = el("div", "s", ev.subj + " ");
         name.appendChild(el("span", "k", ev.kind));
@@ -772,10 +862,16 @@ footer .hint { color: var(--fg); margin-bottom: 6px; }
           cell.classList.add("off", note.cls);
           if (i < 5 || note.cls === "holiday") cell.appendChild(el("div", "hol", note.label));
         }
+        deadlinesOn(date).forEach(function (d) { cell.appendChild(deadlineChip(d)); });
         eventsOn(date).forEach(function (ev) {
           var chip = el("span", "chip");
           chip.style.setProperty("--c", COLORS[ev.subj]);
           chip.title = ev.from + "–" + ev.to + " " + ev.subj + " " + ev.kind + " · зала " + ev.room + (groupLabel(ev) ? " · " + groupLabel(ev) : "");
+          if (ev.mark) {
+            chip.classList.add("marked");
+            chip.title += " · " + ev.mark.text;
+            chip.appendChild(document.createTextNode("⚠ "));
+          }
           chip.appendChild(el("span", "ct", ev.from));
           chip.appendChild(document.createTextNode(ev.subj + (ev.groups === "AB" ? "" : " " + (ev.groups === "A" ? "А" : "Б"))));
           clickable(chip, ev);
